@@ -6,6 +6,7 @@ import os
 import whisper # Use the actual library
 import torch # Whisper uses PyTorch
 from typing import Dict, Any, Optional
+import pathlib # Import pathlib for robust path handling
 
 # --- Configuration ---
 # Use environment variables for model name and device
@@ -63,6 +64,10 @@ async def transcribe_audio(file_path: str, language: Optional[str] = None) -> Di
     timestamps = []
 
     try:
+        # Convert relative path to absolute path for robustness, especially on Windows
+        absolute_file_path = str(pathlib.Path(file_path).resolve())
+        print(f"Attempting transcription with absolute path: {absolute_file_path}")
+
         # Perform transcription
         # verbose=True provides progress in logs, verbose=None is quieter
         # word_timestamps=True can provide word-level data but increases computation
@@ -72,9 +77,14 @@ async def transcribe_audio(file_path: str, language: Optional[str] = None) -> Di
             fp16=(ASR_DEVICE == "cuda"), # Use fp16 only on CUDA
             # word_timestamps=True # Enable if word-level timestamps are needed
         )
-        result = _whisper_model.transcribe(file_path, **options.__dict__) # Pass options as dict
+        # Use the absolute path for transcription
+        result = _whisper_model.transcribe(absolute_file_path, **options.__dict__) # Pass options as dict
 
-        transcript = result.get("text", "Transcription result empty.")
+        # changed by me to get segments
+
+        # transcript = result.get("text", "Transcription result empty.")
+        transcript = "\n".join([seg["text"] for seg in result.get("segments", [])])
+        
         detected_language = result.get("language", detected_language)
         segments = result.get("segments", []) # Contains start, end, text per segment
 

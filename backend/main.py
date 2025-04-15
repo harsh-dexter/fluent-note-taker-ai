@@ -24,11 +24,10 @@ app = FastAPI(
 # Allow requests from typical frontend development ports/origins
 # In production, restrict origins more tightly.
 origins = [
-    "http://localhost",
-    "http://localhost:3000", # Common React dev port
-    "http://localhost:5173", # Common Vite dev port
-    "http://localhost:8080", # Common Vue dev port
-    # Add your frontend deployment URL here in production
+    "http://localhost",  # Localhost for dev
+    "http://localhost:8080",  # Your frontend IP
+    "http://172.20.14.42:8080",  # Additional frontend IPs
+    "http://172.31.96.1:8080",  # Additional frontend IPs
 ]
 
 app.add_middleware(

@@ -7,8 +7,10 @@ import os
 import re
 from typing import Dict, Any, List
 from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain
+# LLMChain is deprecated, we'll use LCEL (prompt | llm)
+# from langchain.chains import LLMChain
 from langchain_core.output_parsers import BaseOutputParser
+from langchain_core.runnables import RunnableSequence
 
 # --- Configuration ---
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower() # 'ollama', 'openai', etc.
@@ -28,10 +30,11 @@ def load_llm():
     print(f"Loading LLM provider: {LLM_PROVIDER}, model: {LLM_MODEL_NAME}")
     if LLM_PROVIDER == "ollama":
         try:
-            from langchain_community.llms import Ollama
-            return Ollama(model=LLM_MODEL_NAME, base_url=OLLAMA_BASE_URL)
+            # Use the updated OllamaLLM class
+            from langchain_ollama import OllamaLLM
+            return OllamaLLM(model=LLM_MODEL_NAME, base_url=OLLAMA_BASE_URL)
         except ImportError:
-            raise ImportError("Ollama provider selected, but 'langchain-community' or 'ollama' is not installed. Run: pip install langchain-community ollama")
+            raise ImportError("Ollama provider selected, but 'langchain-ollama' is not installed. Run: pip install -U langchain-ollama")
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Ollama at {OLLAMA_BASE_URL}. Is Ollama running? Error: {e}")
     elif LLM_PROVIDER == "openai":
@@ -42,7 +45,7 @@ def load_llm():
             return ChatOpenAI(
                 model=LLM_MODEL_NAME,
                 openai_api_key=OPENAI_API_KEY,
-                openai_api_base=OPENAI_API_BASE # Will be None if not set, which is fine
+                openai_api_base=OPENAI_API_BASE # Will be None if not set, which is fine                
             )
         except ImportError:
             raise ImportError("OpenAI provider selected, but 'langchain-openai' is not installed. Run: pip install langchain-openai")
@@ -71,8 +74,9 @@ class BulletPointOutputParser(BaseOutputParser[List[str]]):
 
 # --- Prompts ---
 SUMMARY_TEMPLATE = """
-You are an expert meeting summarizer. Provide a concise, neutral summary of the key topics discussed in the following meeting transcript.
-Focus on the main points and outcomes. Do not add opinions or information not present in the transcript.
+You are an expert meeting summarizer. Summarize the key points and outcomes in a **concise** and **neutral** manner.
+Focus on the major topics discussed, conclusions, and actionable takeaways. 
+Do not introduce any personal opinions. Ensure that the summary highlights all key aspects discussed in the meeting.
 
 TRANSCRIPT:
 {transcript}
@@ -102,14 +106,17 @@ DECISIONS MADE:
 """
 DECISIONS_PROMPT = PromptTemplate(template=DECISIONS_TEMPLATE, input_variables=["transcript"])
 
-# --- Chains ---
+# --- Chains (using LCEL: prompt | llm | parser) ---
+summary_chain: RunnableSequence | None = None
+action_items_chain: RunnableSequence | None = None
+decisions_chain: RunnableSequence | None = None
+
 if _llm:
-    summary_chain = LLMChain(llm=_llm, prompt=SUMMARY_PROMPT)
-    action_items_chain = LLMChain(llm=_llm, prompt=ACTION_ITEMS_PROMPT, output_parser=BulletPointOutputParser())
-    decisions_chain = LLMChain(llm=_llm, prompt=DECISIONS_PROMPT, output_parser=BulletPointOutputParser())
+    # Define chains using the LangChain Expression Language (LCEL)
+    summary_chain = SUMMARY_PROMPT | _llm
+    action_items_chain = ACTION_ITEMS_PROMPT | _llm | BulletPointOutputParser()
+    decisions_chain = DECISIONS_PROMPT | _llm | BulletPointOutputParser()
 else:
-    # Define dummy chains if LLM failed to load, to prevent crashes later
-    summary_chain = action_items_chain = decisions_chain = None
     print("Warning: LLM not loaded. Summarization features will be disabled.")
 
 
@@ -128,7 +135,8 @@ async def process_transcript(transcript: str) -> Dict[str, Any]:
         - decisions: A list of extracted decisions.
     """
     if not _llm or not summary_chain or not action_items_chain or not decisions_chain:
-        print("LLM processing skipped as LLM is not available.")
+        if not _llm:print("Warning: No LLM loaded. Ensure the LLM provider and model are correctly set in the environment variables.")
+
         return {
             "summary": "LLM processing disabled.",
             "action_items": [],
@@ -141,7 +149,8 @@ async def process_transcript(transcript: str) -> Dict[str, Any]:
     decisions = []
 
     try:
-        # Run chains concurrently
+        # Run chains concurrently using LCEL's ainvoke
+        # Input is now just the dictionary for the prompt variables
         results = await asyncio.gather(
             summary_chain.ainvoke({"transcript": transcript}),
             action_items_chain.ainvoke({"transcript": transcript}),
@@ -155,22 +164,31 @@ async def process_transcript(transcript: str) -> Dict[str, Any]:
         if isinstance(summary_result, Exception):
             print(f"Error generating summary: {summary_result}")
             summary = f"Error: {summary_result}"
+        elif isinstance(summary_result, str):
+             # LCEL chain directly returns the string output
+            summary = summary_result.strip()
         else:
-            summary = summary_result.get('text', 'Summary parsing failed.').strip()
+            summary = "Summary generation produced unexpected output type."
+
 
         if isinstance(action_items_result, Exception):
             print(f"Error extracting action items: {action_items_result}")
             action_items = [f"Error: {action_items_result}"]
+        elif isinstance(action_items_result, list):
+             # LCEL chain with parser returns the parsed list
+            action_items = action_items_result
         else:
-            # Result is already parsed by BulletPointOutputParser
-            action_items = action_items_result.get('text', [])
+             action_items = ["Action items extraction produced unexpected output type."]
+
 
         if isinstance(decisions_result, Exception):
             print(f"Error extracting decisions: {decisions_result}")
             decisions = [f"Error: {decisions_result}"]
+        elif isinstance(decisions_result, list):
+            # LCEL chain with parser returns the parsed list
+            decisions = decisions_result
         else:
-            # Result is already parsed by BulletPointOutputParser
-            decisions = decisions_result.get('text', [])
+            decisions = ["Decisions extraction produced unexpected output type."]
 
         print("Transcript processing complete.")
 

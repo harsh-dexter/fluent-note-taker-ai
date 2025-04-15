@@ -1,7 +1,7 @@
 
 import { useState, useRef, ChangeEvent, FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+// import { Progress } from "@/components/ui/progress"; // Removed Progress
 import { Input } from "@/components/ui/input";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { api, Meeting } from "@/services/api";
@@ -15,7 +15,7 @@ type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 export function UploadForm({ onUploadComplete }: UploadFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  // const [uploadProgress, setUploadProgress] = useState(0); // Removed Progress state
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,11 +36,10 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
 
     try {
       setUploadStatus("uploading");
-      setUploadProgress(0);
+      // setUploadProgress(0); // Removed Progress state update
 
-      const meeting = await api.uploadMeeting(selectedFile, (progress) => {
-        setUploadProgress(progress);
-      });
+      // Call the updated API function (no progress callback)
+      const meeting = await api.uploadMeeting(selectedFile);
 
       setUploadStatus("success");
       
@@ -62,7 +61,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
   const handleReset = () => {
     setSelectedFile(null);
     setUploadStatus("idle");
-    setUploadProgress(0);
+    // setUploadProgress(0); // Removed Progress state reset
     setErrorMessage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -110,11 +109,9 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
           />
         </div>
         
+        {/* Removed Progress bar display */}
         {uploadStatus !== "idle" && (
           <div className="mt-4 space-y-2">
-            {uploadStatus === "uploading" && (
-              <Progress value={uploadProgress} className="h-2" />
-            )}
             {statusDisplay[uploadStatus]}
           </div>
         )}

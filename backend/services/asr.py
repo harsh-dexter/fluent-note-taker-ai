@@ -1,24 +1,12 @@
-# Automatic Speech Recognition (ASR) logic using Whisper
-# Requires: pip install -U openai-whisper
-# Requires: brew install ffmpeg (macOS) or sudo apt update && sudo apt install ffmpeg (Linux) or choco install ffmpeg (Windows)
-
 import os
 import whisper # Use the actual library
 import torch # Whisper uses PyTorch
 from typing import Dict, Any, Optional
 import pathlib # Import pathlib for robust path handling
 
-# --- Configuration ---
-# Use environment variables for model name and device
-# Example values: "tiny", "base", "small", "medium", "large-v3"
 WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL_NAME", "base")
-# Use "cuda" if GPU is available and PyTorch with CUDA is installed, otherwise "cpu"
 ASR_DEVICE = os.getenv("ASR_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 
-# --- Load Model ---
-# Load the model globally on module import to avoid reloading on each request
-# This assumes the service runs as a single process or manages model loading appropriately
-# In a multi-worker setup (like gunicorn), consider shared memory or a dedicated inference service.
 _whisper_model = None
 try:
     print(f"Loading Whisper model '{WHISPER_MODEL_NAME}' onto device '{ASR_DEVICE}'...")
@@ -26,8 +14,6 @@ try:
     print("Whisper model loaded successfully.")
 except Exception as e:
     print(f"Error loading Whisper model '{WHISPER_MODEL_NAME}': {e}")
-    # Application might not function correctly if model fails to load.
-    # Consider raising an error or having a fallback mechanism.
 
 async def transcribe_audio(file_path: str, language: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -64,7 +50,6 @@ async def transcribe_audio(file_path: str, language: Optional[str] = None) -> Di
     timestamps = []
 
     try:
-        # Convert relative path to absolute path for robustness, especially on Windows
         absolute_file_path = str(pathlib.Path(file_path).resolve())
         print(f"Attempting transcription with absolute path: {absolute_file_path}")
 

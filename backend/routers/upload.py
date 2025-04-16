@@ -32,6 +32,15 @@ async def process_audio_task(file_path: str, job_id: str, filename: str):
 
         # 2. Process Transcript (Summarize, Extract Actions/Decisions)
         processed_data = await summarizer.process_transcript(transcript)
+
+        # --- Log the processed data ---
+        print(f"[Task {job_id}] --- Processed Data ---")
+        print(f"[Task {job_id}] Summary: {processed_data.get('summary', 'N/A')}")
+        print(f"[Task {job_id}] Action Items: {processed_data.get('action_items', [])}")
+        print(f"[Task {job_id}] Decisions: {processed_data.get('decisions', [])}")
+        print(f"[Task {job_id}] --- End Processed Data ---")
+        # --- End Log ---
+
         # Add the raw transcript to the data to be saved
         processed_data['transcript'] = transcript
         # Potentially add diarization/timestamps here too if needed in DB/output

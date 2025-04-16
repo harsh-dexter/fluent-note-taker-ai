@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from .db.database import create_db_and_tables # Import the function
 
 # Define directories relative to main.py location
 PDF_OUTPUT_DIR = "generated_pdfs" # Should match pdf_generator.py
@@ -19,6 +20,12 @@ app = FastAPI(
     docs_url="/docs", # Default Swagger UI path
     redoc_url="/redoc" # Alternative API docs
 )
+
+# --- Create Database Tables ---
+# This should be called once on startup
+create_db_and_tables()
+print("Database tables checked/created.")
+
 
 # --- CORS Middleware ---
 # Allow requests from typical frontend development ports/origins

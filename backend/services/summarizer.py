@@ -16,7 +16,7 @@ from langchain_core.runnables import RunnableSequence
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower() # 'ollama', 'openai', etc.
 # For Ollama: Model name like 'llama3', 'mistral', 'qwen'
 # For OpenAI: Model name like 'gpt-3.5-turbo', 'gpt-4'
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama3")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "tinyllama")
 # Ollama base URL (if not default localhost:11434)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 # OpenAI API Key (required if using openai provider)
@@ -160,6 +160,11 @@ async def process_transcript(transcript: str) -> Dict[str, Any]:
 
         # Process results, checking for exceptions
         summary_result, action_items_result, decisions_result = results
+
+        # --- Log Raw LLM Outputs ---
+        print(f"Raw Action Items LLM Output: {action_items_result}")
+        print(f"Raw Decisions LLM Output: {decisions_result}")
+        # --- End Log ---
 
         if isinstance(summary_result, Exception):
             print(f"Error generating summary: {summary_result}")

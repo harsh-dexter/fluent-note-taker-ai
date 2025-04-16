@@ -82,17 +82,46 @@ export const api = {
     };
   },
 
-  // Get all meetings (Needs backend implementation)
-  // This currently returns mock data. Replace with a call to a backend endpoint
-  // that lists meetings from the database (e.g., GET /meetings/)
+  // Get all meetings
   getMeetings: async (): Promise<Meeting[]> => {
-    console.warn("getMeetings API call is using mock data. Implement backend endpoint.");
-    // Example backend call:
-    const response = await fetch(`${BASE_URL}/meetings/`); // Needs backend endpoint implementation
-    const data = await handleApiResponse<any[]>(response); // Define backend return type properly
-    // TODO: Map backend data structure to frontend Meeting type
-    // return data.map(item => ({ ... map backend item to Meeting type ... }));
-    return []; // Return empty array until backend endpoint is implemented
+    const response = await fetch(`${BASE_URL}/meetings/`);
+    // Define the expected structure from the backend based on storage.py
+    const backendData = await handleApiResponse<Array<{
+      job_id: string;
+      filename: string;
+      transcript: string | null;
+      summary: string | null;
+      action_items: string[]; // JSON decoded list of strings
+      decisions: string[];    // JSON decoded list of strings
+      timestamp: string; // ISO format string from DB
+    }>>(response);
+
+    // Map backend data to frontend Meeting type
+    return backendData.map((item) => {
+      // Determine status based on summary content
+      let status: Meeting["status"] = "processing"; // Default assumption
+      if (item.summary && !item.summary.startsWith("Error")) {
+          status = "completed";
+      } else if (item.summary?.startsWith("Error")) {
+          status = "error";
+      } else if (!item.summary && item.transcript) {
+          // If no summary but transcript exists, assume completed (or needs specific status)
+          status = "completed"; // Adjust if backend provides better status indication
+      }
+
+      return {
+        id: item.job_id,
+        filename: item.filename || 'N/A',
+        uploadDate: item.timestamp || new Date().toISOString(), // Use DB timestamp
+        status: status,
+        summary: item.summary || undefined,
+        // Map string arrays to ActionItem arrays
+        actionItems: item.action_items?.map((desc, index) => ({ id: `${item.job_id}-action-${index}`, description: desc })) || [],
+        decisions: item.decisions?.map((desc, index) => ({ id: `${item.job_id}-decision-${index}`, description: desc })) || [],
+        error: status === "error" ? item.summary : undefined,
+        // language and duration are not directly available in the list view from backend
+      };
+    });
   },
 
   // Get a single meeting by ID (job_id)
